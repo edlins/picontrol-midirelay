@@ -367,13 +367,13 @@ void midi_process(snd_seq_event_t *ev) {
 
 /* midish - slow startup, latency
           int tempo = 100;
-          sprintf(command, "echo \'dnew 0 \"128:0\" wo; import \"/root/picontrol-midirelay/mid/%s\"; fac %d; p; s; exit;\' | midish -b", file, tempo);
+          sprintf(command, "echo \'dnew 0 \"129:0\" wo; import \"/root/picontrol-midirelay/mid/%s\"; fac %d; p; s; exit;\' | midish -b", file, tempo);
           printf("command: %s\n", command);
           int rc = system(command);
 */
 
 /* aplaymidi - no tempo control */
-          sprintf(command, "aplaymidi /root/picontrol-midirelay/mid/%s --port 128 -d 0", file);
+          sprintf(command, "aplaymidi /root/picontrol-midirelay/mid/%s --port 129 -d 0", file);
           printf("command: %s\n", command);
           int rc = system(command);
 
@@ -411,7 +411,7 @@ void midi_process(snd_seq_event_t *ev) {
           char *file = loopFiles[i];
           char command[100];
           printf("starting %s on %d\n", file, loopKeys[i]);
-          sprintf(command, "aplaymidi /root/picontrol-midirelay/mid/%s --port 128 -d 0", file);
+          sprintf(command, "aplaymidi /root/picontrol-midirelay/mid/%s --port 129 -d 0", file);
           //sprintf(command, "playmidi -e /root/picontrol-midirelay/mid/%s", file);
           //printf("command: %s\n", command);
           while (1) {
