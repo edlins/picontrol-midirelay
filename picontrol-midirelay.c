@@ -49,6 +49,7 @@ int playChannels[16];
 #define CLOCK	28
 #define LATCH	29
 
+char *midifilepath = "/usr/local/picontrol-midirelay/mid";
 char *seqFiles[] = { "seq01.mid", "seq02.mid", "seq03.mid", "seq04.mid", "seq05.mid" };
 char *loopFiles[] = { "loop01.mid", "loop02.mid", "loop03.mid", "loop04.mid", "loop05.mid" };
 
@@ -93,7 +94,7 @@ void midi_open(void)
 {
   //snd_seq_open(&seq_handle, "default", SND_SEQ_OPEN_INPUT, 0);
   snd_seq_open(&seq_handle, "default", SND_SEQ_OPEN_DUPLEX, 0);
-  snd_seq_set_client_name(seq_handle, "LightOrgan");
+  snd_seq_set_client_name(seq_handle, "picontrol-midirelay");
   in_port = snd_seq_create_simple_port(seq_handle, "listen:in",
                     SND_SEQ_PORT_CAP_WRITE|SND_SEQ_PORT_CAP_SUBS_WRITE,
                     SND_SEQ_PORT_TYPE_APPLICATION);
@@ -104,7 +105,7 @@ void midi_open(void)
      //perror("Can't connect to thru port");
      //exit(-1);
   //} 
-  system("aconnect LPK25 LightOrgan");
+  system("aconnect LPK25 picontrol-midirelay");
 }
 
 
@@ -365,25 +366,11 @@ void midi_process(snd_seq_event_t *ev) {
           char command[100];
           printf("starting %s on %d\n", file, seqKeys[i]); 
 
-/* midish - slow startup, latency
-          int tempo = 100;
-          sprintf(command, "echo \'dnew 0 \"129:0\" wo; import \"/root/picontrol-midirelay/mid/%s\"; fac %d; p; s; exit;\' | midish -b", file, tempo);
-          printf("command: %s\n", command);
-          int rc = system(command);
-*/
-
 /* aplaymidi - no tempo control */
-          sprintf(command, "aplaymidi /root/picontrol-midirelay/mid/%s --port 129 -d 0", file);
+          sprintf(command, "aplaymidi %s/%s --port 129 -d 0", midifilepath, file);
           printf("command: %s\n", command);
           int rc = system(command);
 
-/* playmidi - no concurrent execution
-          sprintf(command, "playmidi -e /root/picontrol-midirelay/mid/%s", file);
-          char filep[100];
-          sprintf(filep,"/root/picontrol-midirelay/mid/%s", file);
-          execl("/usr/bin/playmidi", "/usr/bin/playmidi", "-e", filep, (char *)NULL);
-*/
-          
           printf("exiting\n");
           exit(0);
         } // if child
@@ -411,9 +398,7 @@ void midi_process(snd_seq_event_t *ev) {
           char *file = loopFiles[i];
           char command[100];
           printf("starting %s on %d\n", file, loopKeys[i]);
-          sprintf(command, "aplaymidi /root/picontrol-midirelay/mid/%s --port 129 -d 0", file);
-          //sprintf(command, "playmidi -e /root/picontrol-midirelay/mid/%s", file);
-          //printf("command: %s\n", command);
+          sprintf(command, "aplaymidi %s/%s --port 129 -d 0", midifilepath, file);
           while (1) {
             int rc = system(command);
           } //while forever
