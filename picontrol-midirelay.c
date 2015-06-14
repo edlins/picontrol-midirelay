@@ -105,7 +105,7 @@ void midi_open(void)
      //perror("Can't connect to thru port");
      //exit(-1);
   //} 
-  system("aconnect LPK25 picontrol-midirelay");
+  //system("aconnect LPK25 picontrol-midirelay");
 }
 
 
@@ -367,7 +367,7 @@ void midi_process(snd_seq_event_t *ev) {
           printf("starting %s on %d\n", file, seqKeys[i]); 
 
 /* aplaymidi - no tempo control */
-          sprintf(command, "aplaymidi %s/%s --port 129 -d 0", midifilepath, file);
+          sprintf(command, "aplaymidi %s/%s --port 'Midi Through' -d 0", midifilepath, file);
           printf("command: %s\n", command);
           int rc = system(command);
 
@@ -398,7 +398,7 @@ void midi_process(snd_seq_event_t *ev) {
           char *file = loopFiles[i];
           char command[100];
           printf("starting %s on %d\n", file, loopKeys[i]);
-          sprintf(command, "aplaymidi %s/%s --port 129 -d 0", midifilepath, file);
+          sprintf(command, "aplaymidi %s/%s --port 'Midi Through' -d 0", midifilepath, file);
           while (1) {
             int rc = system(command);
           } //while forever
