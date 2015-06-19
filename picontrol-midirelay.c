@@ -23,11 +23,14 @@ static int out_port;
 
 #define NUMDIRECTKEYS 8
 #define NUMSEQKEYS 5
-#define NUMLOOPKEYS 5
+//#define NUMLOOPKEYS 5
 
 int directKeys[NUMDIRECTKEYS] = { 36, 38, 40, 41, 43, 45, 47, 48 };
 int seqKeys[NUMSEQKEYS] = { 49, 51, 54, 56, 58 };
-int loopKeys[NUMLOOPKEYS] = { 37, 39, 42, 44, 46 };
+//int loopKeys[NUMLOOPKEYS] = { 37, 39, 42, 44, 46 };
+int startKey = 37;
+int stopKey = 39;
+char windowid[100];
 
 int pinMapping[] = { 0, 1, 2, 3, 7, 6, 5, 4 };
 
@@ -36,7 +39,7 @@ int pinNotes[NUMPINS];
 int pinChannels[NUMPINS];
 
 // seqs and loops playing from each key
-int keyLoops[NUMLOOPKEYS];
+//int keyLoops[NUMLOOPKEYS];
 int keySeqs[NUMSEQKEYS];
 
 //Enabled channels
@@ -51,7 +54,7 @@ int playChannels[16];
 
 char *midifilepath = "/usr/local/picontrol-midirelay/mid";
 char *seqFiles[] = { "seq01.mid", "seq02.mid", "seq03.mid", "seq04.mid", "seq05.mid" };
-char *loopFiles[] = { "loop01.mid", "loop02.mid", "loop03.mid", "loop04.mid", "loop05.mid" };
+//char *loopFiles[] = { "loop01.mid", "loop02.mid", "loop03.mid", "loop04.mid", "loop05.mid" };
 
 static void sigchld_hdl(int sig) {
   int pid = waitpid(-1,NULL,WNOHANG);
@@ -132,12 +135,14 @@ void clearPinChannels() {
    }
 }
 
+/*
 void clearKeyLoops() {
    int i;
    for(i = 0; i < NUMLOOPKEYS; i++) {
       keyLoops[i] = -1;
    }
 }
+*/
 
 void clearKeySeqs() {
    //printf("clearKeySeqs\n");
@@ -187,7 +192,7 @@ void myShiftOut() {
 void clearPinsState() {
   clearPinNotes();
   clearPinChannels();
-  clearKeyLoops();
+  //clearKeyLoops();
   clearKeySeqs();
 }
 
@@ -280,6 +285,7 @@ void midi_process(snd_seq_event_t *ev) {
     }
   }
   printf("\n");
+  fflush(stdout);
 */
 
   //velocity == 0 means the same thing as a NOTEOFF type event
@@ -310,6 +316,7 @@ void midi_process(snd_seq_event_t *ev) {
     } // for
   } // if not directNote
 
+/*
   // is it a loopNote?
   int loopNote = 0;
   if (!directNote && !seqNote) {
@@ -320,6 +327,18 @@ void midi_process(snd_seq_event_t *ev) {
       } // if seqNote
     } // for
   } // if not directNote and not seqNote
+*/
+
+  // is it startKey or stopKey?
+  int startstop = 0;
+  if (!directNote && !seqNote) {
+    if (ev->data.note.note == startKey) {
+      startstop = 1;
+    } // if startKey
+    else if (ev->data.note.note == stopKey) {
+      startstop = 2;
+    } // else stopKey
+  } // if not directNote and note seqNote
 
 
   //
@@ -386,6 +405,7 @@ void midi_process(snd_seq_event_t *ev) {
   } // else if seqNote
 
 
+/*
   //
   // if it is a loopNote, start or stop a loop
   //
@@ -418,6 +438,33 @@ void midi_process(snd_seq_event_t *ev) {
     } // if isOn
     snd_seq_drain_output(seq_handle);
   } // else if loopNote
+*/
+
+  else if (startstop) {
+    if (isOn) {
+      char command[100];
+      sprintf(command, "xdotool windowfocus --sync %s", windowid);
+      system(command);
+      if (startstop == 1) {
+        sprintf(command, "xdotool key space");
+        printf("start press\n");
+      } // if start
+      else {
+        sprintf(command, "xdotool key Escape");
+        printf("stop press\n");
+      } // if stop
+      system(command);
+    } // if not isOn
+    else {
+      if (startstop == 1) {
+        printf("start release\n");
+      } // if start
+      else {
+        printf("stop release\n");
+      } // if stop
+    } // if not isOn
+  } // if startstop
+  fflush(stdout);
 
 } // midi_process
 
@@ -433,6 +480,50 @@ int main() {
     printf("sigaction\n");
     return 1;
   }
+
+  int filedes[2];
+  if (pipe(filedes) == -1) {
+    perror("pipe");
+    exit(1);
+  }
+  pid_t pid = fork();
+  if (pid == -1) {
+    perror("fork");
+    exit(1);
+  }
+  else if (pid == 0) {
+    while ((dup2(filedes[1], STDOUT_FILENO) == -1) && (errno == EINTR)) {}
+    close(filedes[1]);
+    close(filedes[0]);
+    ///usr/bin/xdotool search --name --onlyvisible seq24
+    execl("/usr/bin/xdotool", "xdotool", "search", "--name", "--onlyvisible", "seq24", (char*)0);
+    perror("execl");
+    _exit(1);
+  }
+  close(filedes[1]);
+  char buffer[4096];
+  while (1) {
+    ssize_t count = read(filedes[0], buffer, sizeof(buffer));
+    if (count == -1) {
+      if (errno == EINTR) {
+        continue;
+      }
+      else {
+        perror("read");
+        exit(1);
+      }
+    }
+    else if (count == 0) {
+      break;
+    }
+    else {
+      strcpy(windowid, buffer);
+      printf("windowid %s", windowid);
+    }
+  }
+  close(filedes[0]);
+  wait(0);
+
 
     //Setup wiringPi
     if( wiringPiSetup() == -1) {
