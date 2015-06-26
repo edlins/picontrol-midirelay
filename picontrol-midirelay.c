@@ -89,6 +89,7 @@ void shift_out(unsigned int data) {
     //delay(1);
     delayMicroseconds(1);
     digitalWrite(CLOCK, LOW);
+    delayMicroseconds(1);
   }
 }
 
