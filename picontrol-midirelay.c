@@ -22,14 +22,17 @@ static int out_port;
 #define NUMPINS 8
 
 #define NUMDIRECTKEYS 8
-#define NUMSEQKEYS 5
+#define NUMSEQKEYS 27
 //#define NUMLOOPKEYS 5
 
 int directKeys[NUMDIRECTKEYS] = { 36, 38, 40, 41, 43, 45, 47, 48 };
-int seqKeys[NUMSEQKEYS] = { 49, 51, 54, 56, 58 };
+int seqKeys[NUMSEQKEYS] = { 37, 39, 42, 44, 46, 49, 51, 54, 56,
+                            58, 60, 61, 62, 63, 64, 65, 66, 67,
+                            68, 69, 70, 71, 72, 73, 74, 75, 76 };
 //int loopKeys[NUMLOOPKEYS] = { 37, 39, 42, 44, 46 };
-int startKey = 37;
-int stopKey = 39;
+int startKey = 13;
+int stopKey = 15;
+int fullKey = 50;
 char windowid[100];
 
 int pinMapping[] = { 0, 1, 2, 3, 7, 6, 5, 4 };
@@ -50,10 +53,10 @@ int playChannels[16];
 
 #define DATA	27
 #define CLOCK	28
-#define LATCH	29
+#define LATCH	25
 
 char *midifilepath = "/usr/local/picontrol-midirelay/mid";
-char *seqFiles[] = { "seq01.mid", "seq02.mid", "seq03.mid", "seq04.mid", "seq05.mid" };
+char *seqFiles[] = { "seq01.mid", "seq02.mid", "seq03.mid", "seq04.mid", "seq05.mid", "seq06.mid", "seq07.mid", "seq08.mid", "seq09.mid", "seq10.mid", "seq11.mid", "seq12.mid", "seq13.mid", "seq14.mid", "seq15.mid", "seq16.mid", "seq17.mid", "seq18.mid", "seq19.mid", "seq20.mid", "seq21.mid", "seq22.mid", "seq23.mid", "seq24.mid", "seq25.mid", "seq26.mid", "seq27.mid" };
 //char *loopFiles[] = { "loop01.mid", "loop02.mid", "loop03.mid", "loop04.mid", "loop05.mid" };
 
 static void sigchld_hdl(int sig) {
@@ -86,10 +89,16 @@ void shift_out(unsigned int data) {
       printf("1");
     }
     digitalWrite(CLOCK, HIGH);
-    //delay(1);
+    // for diagnostic LED display:
+//    delay(100);
     delayMicroseconds(1);
     digitalWrite(CLOCK, LOW);
     delayMicroseconds(1);
+    // for diagnostic LED display:
+//    delay(100);
+    digitalWrite(DATA, LOW);
+    // for diagnostic LED display:
+//    delay(100);
   }
 }
 
@@ -183,10 +192,13 @@ void myShiftOut() {
     shift_out(buffer);
   } // for b
   digitalWrite(LATCH, HIGH);
-  //delay(1);
+  // for LED diagnostic display:
+//  delay(100);
   delayMicroseconds(100);
   digitalWrite(LATCH, LOW);
   printf("\n");
+  // for LED diagnostic display:
+//  delay(100);
 } // myShiftOut
 
 
@@ -341,6 +353,14 @@ void midi_process(snd_seq_event_t *ev) {
     } // else stopKey
   } // if not directNote and note seqNote
 
+  // is it a fullKey?
+  int fullNote = 0;
+  if (!directNote && !seqNote && !startstop) {
+    if (ev->data.note.note == fullKey) {
+      fullNote = 1;
+    } // if fullKey
+  } // if not directNote and not seqNote and not startstop
+
 
   //
   // if it is a directNote, turn the pin on or off
@@ -372,6 +392,44 @@ void midi_process(snd_seq_event_t *ev) {
     myShiftOut();
   } // if directNote
 
+
+  //
+  // if it is a fullNote, turn all the pins on or off
+  //
+  if (fullNote && ev->data.note.note != 0) {
+    //choose the output pin based on the pitch of the note
+    ////int pinIdx = choosePinIdx(ev->data.note.note, ev->data.note.channel);
+    if (isOn) {
+      ////pinNotes[pinIdx] = ev->data.note.note;
+      ////pinChannels[pinIdx] = ev->data.note.channel;
+      for (i=0; i<NUMPINS; i++) {
+        pinNotes[i] = ev->data.note.note;
+        pinChannels[i] = ev->data.note.channel;
+      } // for NUMPINS
+    } // if isOn
+    else {
+      ////pinNotes[pinIdx] = -1;
+      ////pinChannels[pinIdx] = INT_MAX;
+      for (i=0; i<NUMPINS; i++) {
+        pinNotes[i] = -1;
+        pinChannels[i] = INT_MAX;
+      } // for NUMPINS
+    } // else
+/*
+    snd_seq_ev_set_note(snd_seq_ev_set_fixed(ev),
+                        ev->data.note.channel,
+                        ev->data.note.note,
+                        127,
+                        ev->data.note.duration);
+*/
+    ev->data.note.velocity = 127;
+    snd_seq_ev_set_source(ev, out_port);
+    snd_seq_ev_set_subs(ev);
+    snd_seq_ev_set_direct(ev);
+    snd_seq_event_output(seq_handle, ev);
+    snd_seq_drain_output(seq_handle);
+    myShiftOut();
+  } // if directNote
 
   //
   // if it is a seqNote, start a sequence
