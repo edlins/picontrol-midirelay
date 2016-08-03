@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <pca9685.h>
 
 static snd_seq_t *seq_handle;
 static int in_port;
@@ -22,10 +23,12 @@ static int out_port;
 #define NUMPINS 8
 
 #define NUMDIRECTKEYS 8
+#define NUMFADERKEYS 8
 #define NUMSEQKEYS 27
 //#define NUMLOOPKEYS 5
 
 int directKeys[NUMDIRECTKEYS] = { 36, 38, 40, 41, 43, 45, 47, 48 };
+int faderKeys[NUMFADERKEYS] = { 0, 2, 4, 5, 7, 9, 11, 12 };
 int seqKeys[NUMSEQKEYS] = { 37, 39, 42, 44, 46, 49, 51, 54, 56,
                             58, 60, 61, 62, 63, 64, 65, 66, 67,
                             68, 69, 70, 71, 72, 73, 74, 75, 76 };
@@ -248,6 +251,11 @@ int choosePinIdx(int note, int channel) {
        return pinMapping[i];
      } // if directKey
    } // for
+   for (i = 0; i < NUMFADERKEYS; i++) {
+     if (faderKeys[i] == note) {
+       return pinMapping[i];
+     } // if directKey
+   } // for
    return -1;
 } // choosePinIdx
 
@@ -276,16 +284,17 @@ void midi_process(snd_seq_event_t *ev) {
     return;
   } //if percussion
 
-  if (ev->type != SND_SEQ_EVENT_NOTEON && ev->type != SND_SEQ_EVENT_NOTEOFF) {
+  if (ev->type != SND_SEQ_EVENT_NOTEON && ev->type != SND_SEQ_EVENT_NOTEOFF && ev->type != SND_SEQ_EVENT_KEYPRESS) {
     //printf("unhandled event %d\n", ev->type);
     snd_seq_drain_output(seq_handle);
     return;
   } //not noteon or noteoff
   int i;
 
-  printf("%d, %d, %d, %d ",
+  printf("%d, %d, %d, %d, %d ",
           ev->data.note.note,
           ev->data.note.channel,
+          ev->data.note.velocity,
           ev->source.client,
           ev->source.port);
 /*
@@ -361,6 +370,18 @@ void midi_process(snd_seq_event_t *ev) {
     } // if fullKey
   } // if not directNote and not seqNote and not startstop
 
+  // is it a faderNote?
+  int faderNote = 0;
+  if (!directNote && !seqNote && !startstop && !fullNote) {
+    for (i = 0; i < NUMFADERKEYS; i++) {
+      //printf("%d\n",faderKeys[i]);
+      if (ev->data.note.note == faderKeys[i]) {
+        faderNote = 1;
+        break;
+      } //if faderNote
+    } //for loop
+  }
+
 
   //
   // if it is a directNote, turn the pin on or off
@@ -376,13 +397,6 @@ void midi_process(snd_seq_event_t *ev) {
       pinNotes[pinIdx] = -1;
       pinChannels[pinIdx] = INT_MAX;
     } // else
-/*
-    snd_seq_ev_set_note(snd_seq_ev_set_fixed(ev),
-                        ev->data.note.channel,
-                        ev->data.note.note,
-                        127,
-                        ev->data.note.duration);
-*/
     ev->data.note.velocity = 127;
     snd_seq_ev_set_source(ev, out_port);
     snd_seq_ev_set_subs(ev);
@@ -390,6 +404,23 @@ void midi_process(snd_seq_event_t *ev) {
     snd_seq_event_output(seq_handle, ev);
     snd_seq_drain_output(seq_handle);
     myShiftOut();
+  } // if directNote
+
+  //
+  // if it is a faderNote, set the fader to the velocity
+  //
+  if (faderNote) {
+    //choose the output pin based on the pitch of the note
+    int pinIdx = choosePinIdx(ev->data.note.note, ev->data.note.channel);
+    int velocity = ev->data.note.velocity;
+    snd_seq_ev_set_source(ev, out_port);
+    snd_seq_ev_set_subs(ev);
+    snd_seq_ev_set_direct(ev);
+    snd_seq_event_output(seq_handle, ev);
+    snd_seq_drain_output(seq_handle);
+    printf("fader: %d, %d\n", pinIdx, velocity);
+    pwmWrite(300,velocity*32);
+    //myShiftOut();
   } // if directNote
 
 
@@ -596,6 +627,13 @@ int main() {
     digitalWrite(DATA,LOW);
     digitalWrite(CLOCK,LOW);
     digitalWrite(LATCH,LOW);
+
+    //init the 9685
+    int i = pca9685Setup(300,0x40,200);
+    if (i == -1) {
+      printf("error setting up 9685\n");
+      exit(1);
+    }
 
     clearPinsState();
 
